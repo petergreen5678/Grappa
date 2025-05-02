@@ -1,8 +1,8 @@
 Package: Grappa
 Type: Package
 Title: Probability Propagation in Discrete Graphical Models
-Version: 2.0.1
-Date: 2025-05-01
+Version: 2.0.2
+Date: 2025-05-02
 Authors@R: person("Peter", "Green", role = c("aut", "cre"), email = "P.J.Green@bristol.ac.uk")
 Maintainer: Peter Green <P.J.Green@bristol.ac.uk>
 Description: Probability propagation in discrete graphical models, self-contained. 

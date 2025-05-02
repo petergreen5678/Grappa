@@ -1,5 +1,6 @@
 \name{domain}
 \alias{domain}
+\alias{revisit}
 \alias{list.domains}
 \alias{print.Grappa}
 \alias{print.Grappatab}
