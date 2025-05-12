@@ -1,8 +1,6 @@
 domain<-function (d = NULL) 
 {
-cl <- match.call()
-d<-rlang::as_string(as.list(cl[-1])$d)
-pos <- 1
+    pos <- 1
     env <- as.environment(pos)
     assign(".Grpp", new.env(parent = emptyenv()), env)
     if (!is.null(d)) 

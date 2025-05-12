@@ -1,0 +1,1799 @@
+F.Grpp`acliq` <-
+function(vv,allc=FALSE)
+{
+if(exists('j.cq.rev',envir = .Grpp))
+{
+ncliq<-length(.Grpp$j.cq)
+stk<-rep(0,ncliq)
+togo<-rep(TRUE,ncliq)
+
+# stk is a stack whose entries are clique ids
+# togo[ic] is TRUE if clique ic not yet put on stack
+
+icfd<-NULL
+ivv<-match(vv,.Grpp$var.names)
+stk[1]<-.Grpp$j.cq.rev[ivv[1]]
+togo[stk[1]]<-FALSE
+sg<-1
+sp<-2
+repeat
+{
+if(sg>=sp) break
+ic<-stk[sg]
+sg<-sg+1
+if(all(ivv%in%.Grpp$j.cq[[ic]]))
+	{
+	icfd<-c(icfd,ic)
+	if(!allc) break
+	}
+nbhrs<-.Grpp$j.tree[[ic]][,2]
+new<-nbhrs[togo[nbhrs]]; ln<-length(new)
+if(ln>0)
+	{
+	stk[sp:(sp+ln-1)]<-new
+	togo[new]<-FALSE
+	sp<-sp+ln
+	}
+}
+return(icfd)
+}
+else
+# old code
+{
+res<-NULL
+for(i in 1:length(.Grpp$j.cq))
+        {
+        if(all(match(vv,.Grpp$var.names)%in%.Grpp$j.cq[[i]]))
+                {
+                res<-c(res,i)
+                if(!allc) break
+                }
+        }
+return(res)
+}
+}
+
+`and` <-
+function (p,q,r,qv=c(TRUE,FALSE),rv=c(TRUE,FALSE)) 
+{
+lq<-length(qv); lr<-length(rv)
+w<-outer(qv,rv,'&')
+pr<-aperm(array(c(w,!w),c(lq,lr,2)),c(3,1,2))
+tab(c(p,q,r),c(2,lq,lr),as.numeric(pr))
+vs(p,c('yes','no'))
+}
+
+`by` <-
+function (v,...) 
+{
+a<-rdargs(...)
+ss<-NULL
+d<-NULL
+vars<-v
+for(b in a) 
+	{
+	b<-substr(b,2,nchar(b)-1)
+	nv<-nvals(b); d<-c(d,nv); vars<-c(vars,b); s<-1:nv
+	if(exists(cs('vs.',b))) s<-substr(as.character(get(cs('vs.',b),envir = .Grpp)),1,1)
+	if(is.null(ss)) ss<-s
+	else ss<-outer(ss,s,function(p,q){paste(p,q,sep='')})
+	}
+pd<-prod(d)
+probs<-outer(0:(pd-1),array(0:(pd-1),d),'==')
+tab(vars,dim(probs),as.numeric(probs))
+vs(v,as.vector(ss))
+}
+
+`checkjt1` <-
+function()
+{
+# checks "junction tree" for redundancy - "separators" identical to adjacent "cliques"
+for(j in 1:length(.Grpp$j.tree)) 
+if(!identical(.Grpp$j.tree[[j]],-1))
+for(k in 1:nrow(.Grpp$j.tree[[j]])) 
+{
+z<-.Grpp$j.sp[[.Grpp$j.tree[[j]][k,1]]]
+if(z!=-1&&identical(sort(z),sort(.Grpp$j.cq[[.Grpp$j.tree[[j]][k,2]]]))) 
+   cat('cq',.Grpp$j.tree[[j]][k,2],'= sp',.Grpp$j.tree[[j]][k,1],':',sort(z),'\n')
+}
+}
+
+`checkjt2` <-
+function()
+{
+# checking junction property
+
+# search through j.tree monitoring connectedness of subgraphs containing each node
+
+root<-1
+repeat{
+if(!identical(.Grpp$j.cq[[root]],-1)) break
+root<-root+1
+}
+
+ncliq<-length(.Grpp$j.cq)
+stk<-rep(0,ncliq)
+togo<-rep(TRUE,ncliq)
+seen<-rep(0,length(.Grpp$var.names))
+cq<-.Grpp$j.cq[[root]]
+seen[cq]<-seen[cq]+1
+stk[1]<-root
+togo[stk[1]]<-FALSE
+sg<-1
+sp<-2
+repeat
+{
+if(sg>=sp) break
+ic<-stk[sg]
+sg<-sg+1
+nbhrs<-.Grpp$j.tree[[ic]][,2]
+new<-nbhrs[togo[nbhrs]]; ln<-length(new)
+# cat(ic,':',new,'\n')
+cq<-.Grpp$j.cq[[ic]]
+for(icc in new)
+{
+extra<-.Grpp$j.cq[[icc]][!(.Grpp$j.cq[[icc]]%in%cq)]
+seen[extra]<-seen[extra]+1
+}
+if(ln>0)
+	{
+	stk[sp:(sp+ln-1)]<-new
+	togo[new]<-FALSE
+	sp<-sp+ln
+	}
+}
+
+if(any(seen!=1)) cat('problem with vertices',(1:length(seen))[(seen!=1)],'\n')
+
+# check separators
+
+for(j in 1:length(.Grpp$j.tree))
+if(!identical(.Grpp$j.tree[[j]],-1))
+for(k in 1:nrow(.Grpp$j.tree[[j]]))
+{
+if(!all(.Grpp$j.sp[[.Grpp$j.tree[[j]][k,1]]]%in%.Grpp$j.cq[[.Grpp$j.tree[[j]][k,2]]])) 
+	stop(paste('problem with separator',.Grpp$j.tree[[j]][k,1]))
+if(!all(.Grpp$j.sp[[.Grpp$j.tree[[j]][k,1]]]%in%.Grpp$j.cq[[j]]))
+	stop(paste('problem with separator',.Grpp$j.tree[[j]][k,1]))
+}
+}
+
+`clean` <-
+function (force=FALSE) 
+{
+if(force) cat('---------------\n')
+rmtables(force)
+
+for(tag in c('vs.','j.','var.','gene.','tcq','tsep'))
+{
+if(!force) cat('\n')
+x<-vars()
+x<-x[substring(x,1,nchar(tag))==tag]
+if(length(x)>0)
+	{
+	if(force) rm(list=x,envir=.Grpp)
+	else
+	{
+	cat(x,'\n',fill=60)
+	cat('delete?\n')
+	z<-readline()
+	if(z[1]=='y'|z[1]=='Y')
+		{rm(list=x,envir=.Grpp)
+		cat('deleted\n')}
+	else
+		{cat('ignored\n')}
+	}
+	}
+}
+assign('needcomp',FALSE,envir = .Grpp)
+assign('needequil',FALSE,envir = .Grpp)
+assign('grappastack',list(),envir = .Grpp)
+}
+
+`collect` <-
+function (quiet=!getOption('verbose'),start,...) 
+{
+trav(quiet=!getOption('verbose'),start,out=FALSE,...)
+}
+
+`compile` <-
+function (quiet=!getOption('verbose'),uselib) 
+{
+makeadj(quiet)
+if(is.null(getOption('usemcs'))||!getOption('usemcs'))
+	{
+	mcwh(quiet)
+	cat('... compiled using mcwh\n')
+	}
+else
+	{
+	mcs(quiet,uselib=uselib)
+	makejt(quiet)
+	if(missing(uselib)||uselib)
+		cat('... compiled using mcs\n')
+	else
+		cat('... compiled using mcs (R)\n')	
+	}
+assign('needcomp',FALSE,envir = .Grpp)
+}
+
+`cs` <-
+function (...) 
+{
+paste(...,sep='',collapse='')
+}
+
+`enter.evid` <-
+function (var,value,usevs=FALSE,quiet=!getOption('verbose')) 
+{
+ic<-acliq(var)
+if(exists('j.cqe',envir = .Grpp)) assign('j.cqe',c(j.cqe,ic),envir = .Grpp) else assign('j.cqe',ic,envir = .Grpp)
+if(usevs|!is.numeric(value)) value<-match(value,get(cs('vs.',var)))
+.Grpp$tcq[[ic]]<-evid(.Grpp$tcq[[ic]],var,value)
+}
+
+`equil` <-
+function (quiet=!getOption('verbose'),uselib) 
+{
+initcliqs(quiet)
+if(missing(uselib))
+	{
+	if(is.null(getOption('uselib'))||getOption('uselib')) uselib<-TRUE
+	else uselib<-FALSE
+	}
+trav(quiet,uselib=uselib)
+if(!quiet)
+{
+if(uselib)
+	cat('... equilibrated\n')
+else
+	cat('... equilibrated (R)\n')	
+}
+assign('needequil',FALSE,envir = .Grpp)
+}
+
+`evid` <-
+function (cv,var,value,putsw=FALSE) 
+{
+if(is.vector(cv))
+        cliq<-fetch(cv)
+else
+        cliq<-cv
+cvars<-attr(cliq,'vars')
+
+d<-length(cvars)
+r<-match(var,cvars)
+ap<-c((1:d)[r],(1:d)[-r])
+a<-cliq*aperm(array(((1:(dim(cliq)[r]))==value),(dim(cliq))[ap]),order(ap))
+
+if(putsw) put(a)
+a
+}
+
+`fast.trav` <-
+function (quiet=!getOption('verbose')) 
+{
+for(i in 1:nrow(j.sched)) pass(j.sched[i,1],j.sched[i,2],j.sched[i,3],quiet)
+}
+
+`fetch` <-
+function (vars,name) 
+{
+if(missing(name))
+	name<-paste(c('t',sort(vars)),collapse='.')
+get(name,envir = .Grpp)
+}
+
+`fns` <-
+function () 
+{
+names<-ls(envir = .Grpp)
+n<-length(names)
+j<-rep(FALSE,n)
+if(n>0) for(i in 1:n)
+	{
+	j[i]<-is.function(get(names[i],envir = .Grpp))
+	}
+names[j]
+}
+
+`founder` <-
+function (g,freq) 
+{
+if(missing(freq)) freq<-.Grpp$gene.freq
+tab(g,length(freq),freq)
+if(exists('vs.alleles')) vs(g,vs.alleles)
+}
+
+`fq` <-
+function (res,trans=FALSE,print=TRUE,values=FALSE,digits=5) 
+{
+v<-1:length(.Grpp$var.names)
+if(missing(res))
+        {
+        nv<-length(.Grpp$var.names)
+        f<-matrix(0,max(.Grpp$var.nvals),nv)
+        for(j in 1:nv) f[1:.Grpp$var.nvals[j],j]<-nm(.Grpp$var.names[j])
+        }
+else if(is.vector(res))
+	{
+	v<-match(res,.Grpp$var.names)
+	f<-matrix(0,max(.Grpp$var.nvals[v]),length(v))
+	for(j in 1:length(v)) f[1:.Grpp$var.nvals[v[j]],j]<-nm(.Grpp$var.names[v[j]])
+	}
+else
+        {
+        f<-matrix(0,max(res),ncol(res))
+        for(i in 1:max(res)) f[i,]<-apply(res,2,function(x){mean(x==i)})
+        }
+if(digits>0) f<-round(f,digits)
+if(trans) f<-t(f)
+if(print)
+{
+if(trans)
+	{
+	if(values)
+	      for(i in 1:nrow(f)) 
+		prmatrix(matrix(f[i,1:.Grpp$var.nvals[v[i]]],nrow=1),
+		rowlab=as.character(.Grpp$var.names[v[i]]),
+		collab=as.character(get(cs('vs.',.Grpp$var.names[v[i]]), envir = .Grpp)))
+	else
+       		prmatrix(f,rowlab=as.character(.Grpp$var.names[v]))
+	}
+else prmatrix(f,collab=as.character(.Grpp$var.names[v]))
+}
+invisible(f)
+}
+
+`ftrcs` <-
+function (tcq) 
+{
+ncq<-length(tcq)
+lengp<-lengs<-rep(0,ncq)
+for(ic in 1:ncq)
+	{
+	lengs[ic]<-length(dim(tcq[[ic]]))
+	lengp[ic]<-length(tcq[[ic]])
+	}
+lengp<-lengp*(lengs>0)
+csls<-cumsum(lengs); cslp<-cumsum(lengp)
+tls<-sum(lengs); tlp<-sum(lengp)
+vars<-rep(0,tls); nvals<-rep(0,tls); probs<-rep(0,tlp)
+ofs<-0; ofp<-0
+for(ic in 1:ncq)
+	{
+	if(lengs[ic]>0)
+	{
+	its<-ofs+(1:lengs[ic])
+	vars[its]<-match(attr(tcq[[ic]],'vars'),.Grpp$var.names)
+	nvals[its]<-dim(tcq[[ic]])
+	itp<-ofp+(1:lengp[ic])
+	probs[itp]<-as.vector(tcq[[ic]])
+	ofs<-ofs+lengs[ic]; ofp<-ofp+lengp[ic]
+	}
+	}
+vlo<-rep(1,ncq)
+for(ic in 2:ncq) vlo[ic]<-csls[ic-1]+1
+plo<-rep(1,ncq)
+for(ic in 2:ncq) plo[ic]<-cslp[ic-1]+1
+list(vars=vars,vlo=vlo,vhi=csls,probs=probs,plo=plo,phi=cslp,nvals=nvals)
+}
+
+`ftrjt` <-
+function (tree) 
+{
+# encodes j.tree into 3 integer vectors
+#       csl     }               { clique c1 is connected to clique nxt[i] via
+#       sep     } junction tree { separator sep[i] , for all i from csl[c1-1]+1
+#       nxt     }               { to csl[c1] (where csl[0] is 0)
+ncq<-length(tree)
+lengs<-rep(0,ncq)
+for(ic in 1:ncq) if(!identical(tree[[ic]],-1)) lengs[ic]<-nrow(tree[[ic]])
+tleng<-sum(lengs)
+sep<-rep(0,tleng)
+nxt<-rep(0,tleng)
+csl<-cumsum(lengs)
+off<-0
+for(ic in 1:ncq) if(lengs[ic]!=0) 
+        {
+        items<-off+(1:lengs[ic])
+        sep[items]<-tree[[ic]][,1]
+        nxt[items]<-tree[[ic]][,2]
+        off<-off+lengs[ic]
+        }
+list(csl=csl,sep=sep,nxt=nxt)
+}
+
+`genotype` <-
+function (gt,mg,pg,nall) 
+{
+if(missing(nall))
+	{
+	if(exists('gene.freq',envir = .Grpp)) nall<-length(.Grpp$gene.freq)
+	else if(exists('vs.alleles',envir = .Grpp)) nall<-length(vs.alleles)
+	else nall<-3
+	}
+i<-rep(1:nall,nall:1)
+j<-1:nall
+for(k in 2:nall)j<-c(j,k:nall)
+x<-array(0,c(length(i),nall,nall))
+for(k in 1:length(i)) 
+	{
+	y<-outer(1:nall,rep(i[k],nall),'==')&outer(rep(j[k],nall),1:nall,'==')
+	y<-y|t(y)
+	x[k,,]<-y
+	}
+tab(c(gt,mg,pg),dim(x),x)
+if(exists('vs.alleles',envir = .Grpp)) vs(gt,gtvals(.Grpp$vs.alleles))
+}
+
+`Grappa.dir` <-
+function()
+{
+for(f in c('c:/Home/Grappa','d:/Grappa','e:/Grappa'))
+	{
+	if(file.exists(f)) break
+	}
+f
+}
+
+`gtvals` <-
+function (x) 
+{
+nall<-length(x)
+i<-rep(1:nall,nall:1)
+j<-1:nall
+for(k in 2:nall)j<-c(j,k:nall)
+paste(x[i],x[j],sep="-")
+}
+
+`initcliqs` <-
+function (quiet=!getOption('verbose')) 
+{
+ncliq<-length(.Grpp$j.cq)
+tbls<-tables()
+tincq<-vector('list',ncliq)
+nvals<-rep(0,length(.Grpp$var.names))
+
+j.cq.rev<-rep(0,length(.Grpp$var.names))
+for(j in 1:length(.Grpp$j.cq)) if(!identical(.Grpp$j.cq[[j]],-1)) j.cq.rev[.Grpp$j.cq[[j]]]<-j
+stk<-rep(0,ncliq)
+togo<-rep(TRUE,ncliq)
+
+# j.cq.rev[i] is the last-numbered clique that contains node i
+# stk is a stack whose entries are clique ids
+# togo[ic] is TRUE if clique ic not yet put on stack
+
+for(i in 1:length(tbls))
+	{
+	vt<-match(attr(get(tbls[i],envir = .Grpp),'vars'),.Grpp$var.names)
+	stk[1]<-j.cq.rev[vt[1]]
+	togo[stk[1]]<-FALSE
+	sg<-1
+	sp<-2
+	repeat
+	{
+	if(sg>=sp) stop('stack empty in initcliqs')
+	ic<-stk[sg]
+	sg<-sg+1
+	if(all(vt%in%.Grpp$j.cq[[ic]]))
+		{
+		icfd<-ic
+		break
+		}
+	nbhrs<-.Grpp$j.tree[[ic]][,2]
+	new<-nbhrs[togo[nbhrs]]; ln<-length(new)
+	if(ln>0)
+		{
+		stk[sp:(sp+ln-1)]<-new
+		togo[new]<-FALSE
+		sp<-sp+ln
+		}
+	}
+	togo[stk[1:(sp-1)]]<-TRUE
+	tincq[[icfd]]<-c(tincq[[icfd]],i)
+	dim<-attr(get(tbls[i],envir = .Grpp),'dim')
+	nvals[vt]<-dim
+	}
+assign('var.nvals',nvals,envir = .Grpp)
+# gtincq<<-tincq
+assign('tcq',as.list(1:ncliq),envir = .Grpp)
+assign('tsep',as.list(1:ncliq),envir = .Grpp); .Grpp$tsep[[1]]<-NULL
+for(j in 1:ncliq)
+	{
+	k<-.Grpp$j.cq[[j]]
+	if(!identical(k,-1))
+	{
+	x<-tab(.Grpp$var.names[k],.Grpp$var.nvals[k],1,putsw=FALSE)
+	for(i in tincq[[j]]) 
+		{
+		x<-mult(x,attr(get(tbls[i],envir = .Grpp),'vars'))
+		if(!quiet) cat('table',i,'[',tbls[i],'] assigned to clique',j,'\n')
+		}
+	.Grpp$tcq[[j]]<<-x
+	}
+	}
+
+if(ncliq>1)
+	for(i in 2:length(.Grpp$j.sp))
+        	{
+		j<-.Grpp$j.sp[[i]]
+		if(!identical(j,-1)) .Grpp$tsep[[i]]<-tab(.Grpp$var.names[j],.Grpp$var.nvals[j],1,putsw=FALSE)
+        	}
+
+assign('j.cq.rev',j.cq.rev,envir = .Grpp)
+}
+
+`join` <-
+function (v1,v2) 
+{
+i<-match(v1,.Grpp$var.names)
+j<-match(v2,.Grpp$var.names)
+x<-.Grpp$j.adj
+x[i,j]<-TRUE
+x[j,i]<-TRUE
+assign('j.adj',x,envir = .Grpp)
+invisible()
+}
+
+`joint` <-
+function(vars)
+{
+make()
+cq<-acliq(vars)
+if(!is.null(cq)) print(norm(marg(.Grpp$tcq[[cq]],vars)))
+else NULL
+invisible()
+}
+
+`jt` <-
+function () 
+{
+cq<-.Grpp$j.cq
+sp<-.Grpp$j.sp
+ncq<-length(cq)
+cat('cliques:\n')
+for(i in 1:ncq) cat(i,'[',cq[[i]],'] [',.Grpp$var.names[cq[[i]]],']\n')
+a<-b<-rep(0,ncq)
+for(i in 1:ncq)
+	{
+	nn<-nrow(.Grpp$j.tree[[i]])
+	for(k in 1:nn)
+		{
+		j<-.Grpp$j.tree[[i]][k,2]
+		if(i<j) {s<-.Grpp$j.tree[[i]][k,1]; a[s]<-i; b[s]<-j}
+		}
+	}
+cat('separators:\n')
+for(i in 2:ncq) cat('<',a[i],':',b[i],'>',i,'[',sp[[i]],
+	'] [',.Grpp$var.names[sp[[i]]],'] \n')
+invisible()
+}
+
+`make` <-
+function () 
+{
+if(is.null(getOption('uselib'))||getOption('uselib')) uselib<-TRUE
+else uselib<-FALSE
+if(.Grpp$needcomp)
+	{
+	if(is.null(getOption('auto'))||getOption('auto'))
+		compile(uselib=uselib)
+	else
+		stop('not compiled\n')
+	}
+if(.Grpp$needequil)
+	{
+	if(is.null(getOption('auto'))||getOption('auto'))
+		equil(uselib=uselib)
+	else
+		stop('not equilibrated\n')
+	}
+}
+
+`makeadj` <-
+function (quiet=!getOption('verbose')) 
+{
+tt<-tables()
+vars<-unique(unlist(sapply(tt,function(x){attr(get(x, envir = .Grpp),'vars')})))
+assign('var.names',vars,envir = .Grpp)
+
+nv<-length(vars)
+
+if(!quiet) for(i in 1:nv) cat(i,vars[i],'\n')
+adj<-matrix('F',nv,nv)
+for(t in tt)
+	{
+	i<-match(attr(get(t,envir = .Grpp),'vars'),vars)
+	adj[i,i]<-'T'
+	}
+diag(adj)<-'F'
+if(!quiet) for(i in 1:nv) cat(adj[i,],'\n',sep='')
+assign('j.adj',adj=='T',envir = .Grpp)
+
+invisible()
+}
+
+`makejt` <-
+function (quiet=!getOption('verbose')) 
+{
+cq<-.Grpp$j.cq
+sp<-.Grpp$j.sp
+
+ncliq<-length(cq)
+
+jt<-list()
+if(ncliq>1)
+{
+for(ic in 2:ncliq)
+{
+	if(!all(sp[[ic]]%in%cq[[ic]]))
+		{
+		cat('graph not connected!\n')
+		return(invisible())
+		}
+	for(j in 1:(ic-1))
+	if(all(sp[[ic]]%in%cq[[j]])) 
+		{
+		if(!quiet) cat('cliques',j,ic,'linked by separator',ic,'\n')
+		if(length(jt)<j)
+			jt[[j]]<-matrix(c(ic,ic),nrow=1)
+		else
+			{
+			if(is.null(jt[[j]])) jt[[j]]<-matrix(c(ic,ic),nrow=1)
+			else jt[[j]]<-rbind(jt[[j]],c(ic,ic))
+			}
+		if(length(jt)<ic)
+			jt[[ic]]<-matrix(c(ic,j),nrow=1)
+		else
+			{
+			if(is.null(jt[[ic]])) jt[[ic]]<-matrix(c(ic,j),nrow=1)
+			else jt[[ic]]<-rbind(jt[[ic]],c(ic,j))
+			}
+		break
+		}
+}
+}
+else
+	{
+	jt<-NULL
+	}
+assign('j.tree',jt,envir = .Grpp)
+assign('j.cq',cq,envir = .Grpp)
+assign('j.sp',sp,envir = .Grpp)
+
+invisible()
+}
+
+`marg` <-
+function (cv,svars) 
+{
+if(is.vector(cv))
+        cliq<-fetch(cv)
+else
+        cliq<-cv
+cvars<-attr(cliq,'vars')
+
+r<-match(svars,cvars)
+
+a<-apply(cliq,r,sum)
+attributes(a)$vars<-cvars[r]
+attributes(a)$class<-'Grappatab'
+as.array(a)
+}
+
+`mcs` <-
+function(quiet=!getOption('verbose'),repair=TRUE,uselib)
+{
+lib<-paste('Grappa',.Platform$dynlib.ext,sep='')
+if(missing(uselib)||uselib)
+	if(is.loaded('mcs'))
+		{
+		if(!quiet) cat('mcs using library\n'); mcsf(quiet,repair)
+		}
+	else if(file.exists(lib))
+		{
+#		dyn.load(lib); cat('...',lib,'loaded\n'); 
+		if(!quiet) cat('mcs using library\n'); mcsf(quiet,repair)
+		}
+		else 
+			{
+			cat('no',lib,'\n')
+			if(missing(uselib))
+				{
+				if(!quiet) cat('mcs using R\n'); mcsr(quiet,repair)
+				}
+			else
+				cat('mcs fail\n')
+			}
+else
+	{
+	if(!quiet) cat('mcs using R\n'); mcsr(quiet,repair)
+	}
+}
+
+`mcsf` <-
+function (quiet,repair=TRUE) 
+{
+
+nv<-nrow(.Grpp$j.adj)
+mxlist<-40*nv; mxad<-10*nv
+z<-.Fortran('mcs',as.integer(nv),as.integer(.Grpp$j.adj),as.integer(repair),
+	lab=integer(1),label=integer(nv),integer(nv),integer(nv),integer(nv),
+	list=integer(mxlist),as.integer(mxlist),ltop=integer(1),
+	ad=integer(2*mxad),as.integer(mxad),adtop=integer(1), PACKAGE="Grappa")
+
+#	subroutine mcs(nv,adj,repair,lab,label,stk,save,nlabnb,
+#     &	list,mxlist,ltop,ad,mxad,adtop)
+#	integer adj(nv,nv)
+#	integer label(nv),stk(nv),save(nv),nlabnb(nv)
+#	integer list(mxlist),ad(2,mxad),adtop,repair
+
+if(z$lab!=0) cat('error in mcs\n')
+
+list<-z$list[1:z$ltop]
+ad<-z$ad[1:(2*z$adtop-1)]
+a<-ad+1; b<-c(ad[-1],z$ltop)
+ncq<-(length(a)+1)/2
+assign('j.cq',list(),envir = .Grpp); assign('j.sp',list(),envir = .Grpp)
+
+for(i in 1:ncq) .Grpp$j.cq[[i]]<-list[a[2*i-1]:b[2*i-1]]
+if(ncq>1) for(i in 2:ncq) .Grpp$j.sp[[i]]<-list[a[2*i-2]:b[2*i-2]]
+
+invisible()
+}
+
+`mcsr` <-
+function (quiet=!getOption('verbose'),repair=TRUE) 
+{
+joined<-NULL
+adj<-.Grpp$j.adj
+notdone<-TRUE
+while(notdone)
+{
+cq<-list()
+sp<-list()
+icq<-0
+isp<-1
+
+nv<-nrow(adj)
+diag(adj)<-FALSE
+label<-rep(0,nv)
+nlabnb<-rep(0,nv)
+save<-rep(0,nv)
+stk<-rep(0,nv)
+
+nxt<-1
+label[nxt]<-1
+nlabnb[adj[nxt,]]<-1
+isave<-1
+save[isave]<-nxt
+
+notdone<-FALSE
+
+for(lab in 2:nv)
+	{
+	mnln<-0
+	nxt<-0
+	nsing<-0
+	for(j in (1:nv)[label==0])
+		{
+		if(nsing==0) nsing<-j
+		if(nlabnb[j]>mnln)
+			{
+			mnln<-nlabnb[j]
+			nxt<-j
+			}
+		}
+	if(nxt==0) nxt<-nsing
+	label[nxt]<-lab
+	istk<-1
+	for(j in (1:nv)[adj[nxt,]])
+		{
+		if(label[j]!=0)
+			{
+			stk[istk]<-j
+			istk<-istk+1
+			}
+		nlabnb[j]<-nlabnb[j]+1
+		}
+	if(istk>2)
+		{
+		z<-stk[1:(istk-1)]
+		az<-adj[z,z]
+		diag(az)<-TRUE
+		if(!all(az))
+			{
+			if(!quiet) cat('not decomposable\n')
+			notdone<-TRUE
+			if(repair) 
+				{
+				i<-z[row(az)[!az]][1]
+				j<-z[col(az)[!az]][1]
+				adj[i,j]<-adj[j,i]<-TRUE
+				if(!quiet) cat('joining',i,'&',j,'\n')
+				joined<-c(joined,i,j)
+				break
+				}
+			return(lab)
+			}
+		}
+	if((istk-1)!=isave||any(stk[1:(istk-1)]!=save[1:isave]))
+		{
+		if(!quiet) cat('cliq ',save[1:isave],'\n')
+		if(!quiet) cat('sep  ',stk[1:(istk-1)],'\n')
+		icq<-icq+1; cq[[icq]]<-save[1:isave]
+		isp<-isp+1; sp[[isp]]<-stk[1:(istk-1)]
+		}
+	nexta<-nxt
+	ip<-istk
+	if(istk>1)
+		{
+		for(is in ((istk-1):1))
+			{
+			if(stk[is]>nexta) {save[ip]<-stk[is]; ip<-ip-1}
+			else
+				{
+				save[ip]<-nexta
+				nexta<-0
+				save[ip-1]<-stk[is]
+				ip<-ip-2
+				}
+			}
+		}
+	if(nexta!=0) save[1]<-nexta
+	isave<-istk
+	}
+}
+if(!quiet) cat('cliq ',save[1:isave],'\n')
+icq<-icq+1; cq[[icq]]<-save[1:isave]
+lab<-0
+assign('j.cq',cq,envir = .Grpp)
+assign('j.sp',sp,envir = .Grpp)
+if(!is.null(joined)) assign('j.joined',matrix(joined,ncol=2,byrow=TRUE),envir = .Grpp)
+invisible()
+}
+
+`mcwh` <-
+function (quiet) 
+{
+if(!is.loaded('mcwh'))
+	{
+	lib<-paste('Grappa',.Platform$dynlib.ext,sep='')
+#	dyn.load(lib)
+#	cat('...',lib,'loaded\n')
+	}
+tbls<-tables()
+nvals<-rep(0,length(.Grpp$var.names))
+for(i in 1:length(tbls))
+	{
+	vt<-attr(get(tbls[i],envir = .Grpp),'vars')
+	k<-match(vt,.Grpp$var.names)
+	nvals[k]<-attr(get(tbls[i],envir = .Grpp),'dim')
+	}
+assign('var.nvals',nvals,envir = .Grpp)
+
+nn<-apply(.Grpp$j.adj,1,sum)
+nv<-nrow(.Grpp$j.adj)
+cnbr<-NULL
+for(i in 1:nv) cnbr<-c(cnbr,(1:nv)[.Grpp$j.adj[i,]])
+nc<-length(cnbr)
+
+zz<-.Fortran('mcwh',as.integer(nv),as.integer(nn),as.integer(.Grpp$var.nvals),
+	as.integer(nc),as.integer(cnbr),
+	it=integer(1),inbre=integer(1),elim=integer(nv),le=integer(nv),
+	nne=integer(nv),nbre=integer(nc),
+	integer(nv*nv),double(nv),integer(nv), PACKAGE="Grappa")
+
+#	subroutine mcwh(nv,nn,nvals,nc,cnbr,
+#     &	it,inbre,elim,le,nne,nbre,
+#     &	nbr,wt,next)
+
+#	integer elim,cnbr
+#	dimension nvals(nv),nn(nv),nbr(nv,nv),wt(nv),
+#     &	next(nv),elim(nv),cnbr(nc),le(nv),nne(nv),
+#     &	nbre(nc)
+
+ncq<-zz$it+1
+iz<-cumsum(zz$nne)
+ia<-1+c(0,iz[-ncq])
+assign('j.cq',list(),envir = .Grpp); assign('j.sp',list(),envir = .Grpp)
+.Grpp$j.cq[[1]]<-sort(zz$nbre[ia[ncq]:iz[ncq]])
+w<-rep(0,ncq)
+if(ncq>1) for(i in 2:ncq)
+	{
+	s<-zz$nbre[ia[ncq+1-i]:iz[ncq+1-i]]
+	.Grpp$j.sp[[i]]<-sort(s); .Grpp$j.cq[[i]]<-sort(c(s,zz$le[ncq+1-i]))
+	w[i]<-ncq+1-min(zz$elim[s])
+	}
+#cat(w,'\n')
+
+jt<-list()
+if(ncq>1) for(i in 2:ncq)
+	{
+	wi<-w[i]
+	if(!quiet) cat('cliques',wi,i,'linked by separator',i,'\n')
+	if(length(jt)<i)
+		jt[[i]]<-matrix(c(i,wi),nrow=1)
+	else
+		{
+		if(is.null(jt[[i]])) jt[[i]]<-matrix(c(i,wi),nrow=1)
+		else jt[[i]]<-rbind(jt[[i]],c(i,wi))
+		}
+	if(length(jt)<wi)
+		jt[[wi]]<-matrix(c(i,i),nrow=1)
+	else
+		{
+		if(is.null(jt[[wi]])) jt[[wi]]<-matrix(c(i,i),nrow=1)
+		else jt[[wi]]<-rbind(jt[[wi]],c(i,i))
+		}
+	}
+assign('j.tree',jt,envir = .Grpp)
+
+invisible(list(it=zz$it,inbre=zz$inbre,elim=zz$elim,le=zz$le[1:zz$it],
+	nne=zz$nne[1:(zz$it+1)],nbre=zz$nbre[1:zz$inbre]))
+
+
+}
+
+`mendel` <-
+function (cg,tmg,tpg,nall) 
+{
+if(missing(nall))
+        {
+        if(exists('gene.freq',envir = .Grpp)) nall<-length(.Grpp$gene.freq)
+        else if(exists('vs.alleles')) nall<-length(vs.alleles)
+        else nall<-3
+        }
+x<-array(0,rep(nall,3))
+for(i in 1:nall)
+        x[i,,]<-0.5*(outer(1:nall,rep(i,nall),'==')+
+        outer(rep(i,nall),1:nall,"=="))
+tab(c(cg,tmg,tpg),rep(nall,3),x)
+if(exists('vs.alleles')) vs(cg,vs.alleles)
+invisible()
+}
+
+`mix` <-
+function (mix,agt,bgt,nall) 
+{
+if(missing(nall))
+	{
+	if(exists('gene.freq',envir = .Grpp)) nall<-length(.Grpp$gene.freq)
+	else if(exists('vs.alleles',envir = .Grpp)) nall<-length(.Grpp$vs.alleles)
+	else nall<-3
+	}
+i<-rep(1:nall,nall:1)
+j<-1:nall; for(k in 2:nall) j<-c(j,k:nall)
+li<-length(i)
+mat<-matrix(0,li,li)
+pws<-2^(0:(nall-1))
+gl<-list()
+for(k1 in 1:li) for(k2 in 1:li) 
+	{
+	genes<-sort(unique(c(i[k1],j[k1],i[k2],j[k2])))
+	#print(genes)
+	#print(paste(genes,collapse='-'))
+	z<-sum(pws[(1:nall)%in%genes])
+	mat[k1,k2]<-z
+	gl[[z]]<-genes
+	}
+x<-outer(sort(unique(as.vector(mat))),mat,'==')
+x<-array(as.integer(x),dim(x))
+tab(c(mix,agt,bgt),dim(x),x)
+if(exists('vs.alleles',envir = .Grpp)) {i<-.Grpp$vs.alleles[i]; j<-.Grpp$vs.alleles[j]}
+if(!exists(cs('vs.',agt),envir = .Grpp)) vs(agt,paste(i,j,sep='-'))
+if(!exists(cs('vs.',bgt),envir = .Grpp)) vs(bgt,paste(i,j,sep='-'))
+if(exists('vs.alleles',envir = .Grpp))
+	vs(mix,unlist(lapply(gl,function(genes){paste(.Grpp$vs.alleles[genes],collapse='-')})))
+else
+	vs(mix,unlist(lapply(gl,function(genes){paste(genes,collapse='-')})))
+}
+
+`mult` <-
+function (cv,sv,putsw=FALSE) 
+{
+if(is.vector(cv))
+	cliq<-fetch(cv)
+else
+	cliq<-cv
+
+if(is.vector(sv))
+	sep<-fetch(sv)
+else
+	sep<-sv
+
+cvars<-attr(cliq,'vars')
+svars<-attr(sep,'vars')
+
+d<-length(cvars)
+r<-NULL
+for(v in svars) r<-c(r,match(v,cvars))
+ap<-c((1:d)[r],(1:d)[-r])
+a<-cliq*aperm(array(sep,(dim(cliq))[ap]),order(ap))
+
+if(putsw) put(a)
+a
+}
+
+`nm` <-
+function (var) 
+{
+make()
+as.vector(norm(marg(.Grpp$tcq[[acliq(var)]],var)))
+}
+
+`norm` <-
+function(cliq){(cliq/sum(cliq))}
+
+`nvals` <-
+function(var){
+for(t in tables())
+        {
+        i<-match(var,attr(get(t,envir = .Grpp),'vars'))
+        if(!is.na(i)) break
+        }
+dim<-attr(get(t,envir = .Grpp),'dim')[i]
+}
+
+`or` <-
+function (p,q,r,qv=c(TRUE,FALSE),rv=c(TRUE,FALSE)) 
+{
+lq<-length(qv); lr<-length(rv)
+w<-outer(qv,rv,'|')
+pr<-aperm(array(c(w,!w),c(lq,lr,2)),c(3,1,2))
+tab(c(p,q,r),c(2,lq,lr),as.numeric(pr))
+vs(p,c('yes','no'))
+}
+
+`pass` <-
+function (c1,s,c2,quiet=!getOption('verbose')) 
+{
+xo<-.Grpp$tsep[[s]]
+x<-marg(.Grpp$tcq[[c1]],attr(xo,'vars'))
+if(!quiet) 
+	{
+	cat(c1,s,c2)
+	if(all(abs(x-xo)<0.0001*pmax(abs(x),abs(xo)))) cat(' =')
+	cat('\n')
+	}
+.Grpp$tcq[[c2]]<-mult(.Grpp$tcq[[c2]],x/((x<xo)*xo+(x>=xo)*pmax(1e-15,xo)))
+.Grpp$tsep[[s]]<-x
+}
+
+`passf` <-
+function (nvals,cq1,sep,cq2,a,b,c) 
+{
+kcq1<-as.integer(length(cq1)); ksep<-as.integer(length(sep)); kcq2<-as.integer(length(cq2))
+zz<-.Fortran('pass',kcq1,ksep,kcq2,
+	as.integer(length(nvals)),as.integer(nvals),
+	as.integer(cq1),as.integer(sep),as.integer(cq2),
+	integer(kcq1),integer(ksep),integer(kcq2),
+	integer(kcq1),integer(ksep),integer(kcq2),
+	integer(kcq1),integer(ksep),integer(kcq2),
+	integer(kcq1),integer(ksep),integer(kcq2),
+	integer(kcq1),integer(ksep),integer(kcq2),
+	integer(ksep),integer(ksep),
+	a=as.double(a),b=as.double(b),c=as.double(c),integer(1), PACKAGE="Grappa")
+
+#	subroutine pass(kcq1,ksep,kcq2,nvars,nvals,
+#     &	icq1,isep,icq2,acq1,asep,acq2,
+#     &	rcq1,rsep,rcq2,cpcq1,cpsep,cpcq2,
+#     &	qcq1,qsep,qcq2,nxtcq1,nxtsep,nxtcq2,
+#     &	cpx1,cpx2,a,b,c,idone)
+#	integer icq1(kcq1),isep(ksep),icq2(kcq2)
+#	integer acq1(kcq1),rcq1(kcq1),cpcq1(kcq1),qcq1(kcq1),nxtcq1(kcq1)
+#	integer asep(ksep),rsep(ksep),cpsep(ksep),qsep(ksep),nxtsep(ksep)
+#	integer acq2(kcq2),rcq2(kcq2),cpcq2(kcq2),qcq2(kcq2),nxtcq2(kcq2)
+#	integer cpx1(ksep),cpx2(ksep),nvals(nvars)
+#	real*8 a(1),b(1),c(1)
+
+list(a=zz$a,b=zz$b,c=zz$c)
+}
+
+`peek` <-
+function()
+{
+if(length(.Grpp$grappastack)>0) for(i in length(.Grpp$grappastack):1) 
+	{
+	nm<-names(.Grpp$grappastack[[i]])
+	k<-match('date',nm)
+	cat(i,.Grpp$grappastack[[i]]$date,nm[-k],'\n')
+	}
+else cat('stack empty\n')
+}
+
+`pl.adj` <-
+function () 
+{
+t<-2*pi*(0:400)/400
+n<-nrow(.Grpp$j.adj)
+
+plot(cos(t),sin(t),type='l',lty=3,xlim=c(-1.5,1.5),ylim=c(-1.5,1.5),
+	axes=FALSE,xlab='',ylab='')
+
+if(exists('j.joined')) 
+for(i in 1:nrow(j.joined)) {t<-j.joined[i,]*2*pi/n; lines(cos(t),sin(t))}
+
+for(i in 2:n) for(j in 1:i) if(.Grpp$j.adj[i,j])
+	{t<-c(i,j)*2*pi/n; lines(cos(t),sin(t),lty=2)}
+
+for(i in 1:length(.Grpp$var.names)) 
+	{t<-i*2*pi/n; lab<-.Grpp$var.names[i]
+	angle<-i*360/n; adjt<--0.3+.2*(nchar(lab)-2)/6
+	if(angle>90 & angle <=270) {angle<-angle+180; adjt<-1-adjt}
+	text(cos(t),sin(t),lab,adj=adjt,srt=angle)}
+}
+
+`pnmarg` <-
+function (var,allc=FALSE) 
+{
+make()
+z<-norm(marg(.Grpp$tcq[[acliq(var)]],var))
+print(z)
+if(length(z)==2) cat('                         likrat=',z[1]/z[2],'\n')
+invisible()
+}
+
+`pop` <-
+function (which=ls,keep=FALSE) 
+{
+ls<-length(.Grpp$grappastack)
+if(ls==0)
+	{
+	cat('stack empty\n')
+	return(invisible())
+	}
+item<-.Grpp$grappastack[[which]]
+if(!keep) .Grpp$grappastack[[which]]<-NULL
+vars<-names(item)
+k<-match('date',vars)
+for(v in vars[-k]) assign(v,item[[v]],envir = .Grpp)
+cat('popped:',vars[-k],'\n')
+}
+
+`print.Grappatab` <-
+function (x,...) 
+{
+if((is.null(dim(x)))|(length(dim(x))==1))
+	{
+	v<-attr(x,'vars')
+	n<-length(x)
+	values<-1:n
+	if(exists(cs('vs.',v))) values<-get(cs('vs.',v))
+	prmatrix(matrix(x,nrow=1),rowlab='',
+		collab=paste(c(paste(v,'=',sep=''),rep('',length(x)-1)),values,sep=''))
+	}
+else 
+	{
+	v<-attr(x,'vars')
+	blanks<-paste(rep(' ',nchar(v[1])+1),collapse='')
+	vals<-list()
+	for(j in 1:length(dim(x)))
+		{
+		vals[[j]]<-1:dim(x)[j]
+		if(exists(cs('vs.',v[j]),envir = .Grpp)) vals[[j]]<-get(cs('vs.',v[j]), envir = .Grpp)
+		}
+	if(length(dim(x))==2)
+		{
+		prmatrix(x,
+			rowlab=paste(c(paste(v[1],'=',sep=''),rep(blanks,nrow(x)-1)),vals[[1]],sep=''),
+			collab=paste(c(paste(v[2],'=',sep=''),rep('',ncol(x)-1)),vals[[2]],sep=''))
+		}
+	else if(length(dim(x))==3)
+		{
+		for(k in 1:dim(x)[3])
+			{
+			cat(v[3],'=',vals[[3]][k],'\n',sep='')
+			prmatrix(x[,,k],
+			  rowlab=paste(c(paste(v[1],'=',sep=''),rep(blanks,nrow(x)-1)),vals[[1]],sep=''),
+			  collab=paste(c(paste(v[2],'=',sep=''),rep('',ncol(x)-1)),vals[[2]],sep=''))
+			cat('\n')
+			}
+		}	
+	else if(length(dim(x))==4)
+		{
+		for(k in 1:dim(x)[3]) for(l in 1:dim(x)[4])
+			{
+			cat(v[3],'=',vals[[3]][k],'   ',v[4],'=',vals[[4]][l],'\n',sep='')
+			prmatrix(x[,,k,l],
+			  rowlab=paste(c(paste(v[1],'=',sep=''),rep(blanks,nrow(x)-1)),vals[[1]],sep=''),
+			  collab=paste(c(paste(v[2],'=',sep=''),rep('',ncol(x)-1)),vals[[2]],sep=''))
+			cat('\n')
+			}
+		}
+	else if(length(dim(x))==5)
+		{
+		for(k in 1:dim(x)[3]) for(l in 1:dim(x)[4]) for(m in 1:dim(x)[5])
+			{
+			cat(v[3],'=',vals[[3]][k],'   ',
+				v[4],'=',vals[[4]][l],'   ',
+				v[5],'=',vals[[5]][m],'\n',sep='')
+			prmatrix(x[,,k,l,m],
+			  rowlab=paste(c(paste(v[1],'=',sep=''),rep(blanks,nrow(x)-1)),vals[[1]],sep=''),
+			  collab=paste(c(paste(v[2],'=',sep=''),rep('',ncol(x)-1)),vals[[2]],sep=''))
+			cat('\n')
+			}
+		}
+	else
+		print.default(x)
+	}
+}
+
+`prop.evid` <-
+function (var,value,usevs=FALSE,quiet=!getOption('verbose')) 
+{
+make()
+ic<-acliq(var)
+if(usevs|!is.numeric(value)) value<-match(value,get(cs('vs.',var), envir = .Grpp))
+.Grpp$tcq[[ic]]<-evid(.Grpp$tcq[[ic]],var,value)
+trav(quiet,ic)
+}
+
+`prune` <-
+function(quiet=!getOption('verbose'))
+{
+for(j in 1:(length(.Grpp$.Grpp$j.cq)-1))
+for(k in 1:nrow(.Grpp$j.tree[[j]]))
+{
+jn<-.Grpp$j.tree[[j]][k,2]
+if(jn>j)
+{
+if(all(.Grpp$j.cq[[j]]%in%.Grpp$j.cq[[jn]])) 
+{
+if(!quiet) cat('remove clique',j,'as it is in clique',jn,'\n')
+jtj<-.Grpp$j.tree[[j]]
+# remove link to j from .Grpp$j.tree[[jn]
+.Grpp$j.tree[[jn]]<-.Grpp$j.tree[[jn]][.Grpp$j.tree[[jn]][,2]!=j,]
+# add j's other links to j.tree[[jn]
+.Grpp$j.tree[[jn]]<-rbind(.Grpp$j.tree[[jn]],jtj[jtj[,2]!=jn,,drop=F])
+# change other neighbours' links to j to be to jn instead
+for(jo in jtj[,2]) if(jo!=jn) .Grpp$j.tree[[jo]][.Grpp$j.tree[[jo]][,2]==j,2]<-jn
+.Grpp$j.tree[[j]]<- -1
+.Grpp$j.cq[[j]]<- -1
+
+is<-jtj[jtj[,2]==jn,1]
+if(!quiet) cat('remove separator',is,'\n')
+.Grpp$j.sp[[is]]<- -1
+break
+}
+}
+}
+}
+
+`prvs` <-
+function () 
+{
+i<-'vs'==substring(vars(),1,2)
+names<-substring(vars()[i],4)
+for(n in names) cat(n,':',get(cs('vs.',n), envir = .Grpp),'\n')
+}
+
+`push` <-
+function (...) 
+{
+vars<-rdargs(...)
+if(is.null(vars)) vars<-c('tcq','tsep')
+if(!exists('grappastack',envir = .Grpp, inherits=FALSE)) assign('grappastack',list(),envir = .Grpp)
+ls<-length(.Grpp$grappastack)
+new<-list()
+lv<-length(vars)
+for(i in 1:lv) new[[i]]<-get(vars[i], envir = .Grpp)
+names(new)<-vars
+new$date<-date()
+.Grpp$grappastack[[ls+1]]<-new
+cat('pushed:',vars,'\n')
+}
+
+`put` <-
+function (a,name) 
+{
+if(missing(name))
+	name<-paste(c('t',sort(attr(a,'vars'))),collapse='.')
+assign('needcomp',!exists(name),envir = .Grpp)
+assign('needequil',TRUE,envir = .Grpp)
+
+assign(name,a,envir = .Grpp)
+}
+
+`query` <-
+function (g,probs=c(0.5,0.5),values=c('yes','no')) 
+{
+tab(g,2,probs,values)
+}
+
+`rdargs` <-
+function (x,...) 
+{a<-deparse(substitute(x))
+if(a=='') NULL
+else c(a,rdargs(...))
+}
+
+`rdir` <-
+function (n,pars) 
+{
+k<-length(pars)
+res<-matrix(0,n,k)
+.Grpp$j.sp<-cumsum(pars)
+stg<-rep(1,n)
+for(i in k:2)
+	{
+	res[,i]<-stg*rbeta(n,pars[i],.Grpp$j.sp[i-1])
+	stg<-stg-res[,i]
+	}
+res[,1]<-stg
+res
+}
+
+`rmtables` <-
+function (force=FALSE) 
+{
+x<-tables()
+if(length(x)>0)
+	{
+	if(force) rm(list=x,envir=.Grpp)
+	else
+	{
+	cat(x,'\n',fill=60)
+	cat('delete?\n')
+	z<-readline()
+	if(z[1]=='y'|z[1]=='Y')
+		{rm(list=x,envir=.Grpp)
+		cat('deleted\n')}
+	else
+		{cat('ignored\n')}
+	}
+	}
+}
+
+`se` <-
+function(tf,pf,of,tfeqpf,nall)
+{
+# Italian/French for if
+if(missing(nall)) nall<-length(gene.freq)
+t<-array(0,c(rep(nall,3),2))
+for(i in 1:nall) t[,,i,1]<-t[,i,,2]<-diag(nall)
+tab(c(tf,pf,of,tfeqpf),,t)
+vs(tf,vs.alleles)
+}
+
+`select` <-
+function (tfg,pfg,tfeqpf,freq) 
+{
+if(missing(freq)) freq<-.Grpp$gene.freq
+# tfg is pfg if tfeqpf has its 1st value, otherwise it is drawn from freq
+nall<-length(freq)
+tab(c(tfg,pfg,tfeqpf),c(nall,nall,2),c(
+as.vector(diag(nall)),
+rep(freq,nall)
+))
+if(exists('vs.alleles')) vs(tfg,vs.alleles)
+}
+
+`set` <-
+function(i,nall=length(.Grpp$gene.freq)) 
+{
+as.integer(i==(1:nall))
+}
+
+`si` <-
+function(tf,pf,of,tfeqpf,nall)
+{
+# Italian/French for if
+if(missing(nall)) nall<-length(.Grpp$gene.freq)
+t<-array(0,c(rep(nall,3),2))
+for(i in 1:nall) t[,,i,1]<-t[,i,,2]<-diag(nall)
+tab(c(tf,pf,of,tfeqpf),,t)
+vs(tf,vs.alleles)
+}
+
+`sim` <-
+function (n,t,vars,vals) 
+{
+if(missing(vars)) 
+	{
+	r<-NULL
+	dr<-dim(t)
+	}
+else
+	{
+	cvars<-attr(t,'vars')
+	r<-match(.Grpp$var.names[vars],cvars)
+	o<-(1:length(cvars))[-r]
+	dr<-(dim(t))[o]
+	}
+a<-ss(t,r,vals)
+x<-sample(length(a),n,TRUE,a)
+
+ldr<-length(dr)
+cp<-cumprod(c(1,dr[-ldr]))
+res<-matrix(0,n,ldr)
+for(j in 1:n) res[j,]<-1+((x[j]-1)%/%cp)%%dr
+res
+}
+
+`simn` <-
+function (n,tab,vars,vals) 
+{
+if(missing(vars))
+	return(sim(n,tab))
+d<-length(vars)
+res<-matrix(0,n,length(dim(tab))-d)
+if(d==1)
+	{
+	key<-as.vector(vals)
+	for(k in unique(key)) res[k==key,]<-sim(sum(k==key),tab,vars,vals[match(k,key)])
+	}
+else
+	{
+	vals<-matrix(vals,n,d)
+	key<-vals%*%cumprod(c(1,apply(vals,2,max)[-d]))
+	for(k in unique(key)) res[k==key,]<-sim(sum(k==key),tab,vars,vals[match(k,key),])
+	}
+res
+}
+
+`simulate` <-
+function (nobs=1,start=1) 
+{
+make()
+if(length(.Grpp$j.cq)<2) return(sim(nobs,.Grpp$tcq[[1]]))
+
+#traverses junction tree j.tree away from clique start
+nv<-length(.Grpp$j.tree)
+togo<-rep(TRUE,nv)
+togo[start]<-FALSE
+stack<-rep(0,nv)
+stack[1]<-start
+is<-1
+
+res<-matrix(0,nobs,length(.Grpp$var.names))
+
+wh<-.Grpp$j.cq[[start]]
+res[,wh]<-sim(nobs,.Grpp$tcq[[start]])
+
+repeat
+	{
+	if(is==0) break
+	this<-stack[is]
+
+	is<-is-1
+	sc<-.Grpp$j.tree[[this]]
+
+	for(i in 1:nrow(sc))
+		{
+		nx<-sc[i,2]
+		if(togo[nx]) 
+			{
+			whc<-.Grpp$j.sp[[sc[i,1]]]
+			r<-match(.Grpp$j.sp[[sc[i,1]]],.Grpp$j.cq[[sc[i,2]]])
+			wh<-.Grpp$j.cq[[sc[i,2]]][-r]
+			res[,wh]<-simn(nobs,.Grpp$tcq[[sc[i,2]]],.Grpp$j.sp[[sc[i,1]]],res[,whc])
+			is<-is+1; stack[is]<-nx; togo[nx]<-FALSE}
+		}
+	}
+
+res
+}
+
+`sizes` <-
+function (spec=FALSE,containing='') 
+{
+# lists tables (either specification or working)
+# optionally limited to those containing 'containing' among variable names
+total <- 0
+if(spec) 
+{
+        tabs<-tables()
+        if(containing!='') tabs<-tabs[grep(containing,tabs)]
+        for (i in 1:length(tabs)) {
+        t<-get(tabs[i], envir = .Grpp)
+        this <- prod(dim(t))
+        cat(this, attr(t, "vars"), "\n")
+        total <- total + this
+    }
+}
+else 
+{
+        for (i in 1:length(.Grpp$tcq)) {
+        this <- prod(dim(.Grpp$tcq[[i]]))
+        vars<-attr(.Grpp$tcq[[i]], "vars")
+        if(length(grep(containing,vars))!=0){
+                cat(this, vars, "\n")
+                total <- total + this
+                }
+        }
+}
+cat("total:", total, "in",c('working','specification')[1+spec],"tables \n")
+}
+
+`ss` <-
+function (x,s,v) 
+{
+# soft subscripting: returns the subarray of x 
+# where the s[i]'th index is v[i] for all i
+if(is.null(s)) return(x)
+d<-dim(x)
+ld<-length(d)
+z<-rep(TRUE,length(x))
+a<-b<-rep(1,ld)
+for(i in 2:ld) a[i]<-d[i-1]*a[i-1]
+for(i in (ld-1):1) b[i]<-d[i+1]*b[i+1]
+for(i in 1:length(s)) 
+	{
+	si<-s[i]
+	z<-z&v[i]==rep(rep(1:d[si],rep(a[si],d[si])),b[si])
+	}
+dr<-d[(1:ld)[-s]]
+array(as.vector(x)[z],dr)
+}
+
+`tab` <-
+function (vars,levels=dim(probs),probs,values=1:levels[1],putsw=TRUE) 
+{
+if(is.null(levels)) levels<-rep(2,length(vars))
+a<-array(probs,levels)
+attributes(a)$vars<-vars
+attributes(a)$class<-'Grappatab'
+if(putsw) 
+	{
+	put(a)
+	vs(vars[1],values)
+	}
+invisible(a)
+}
+
+`tables` <-
+function () 
+{
+    names <- ls(envir = .Grpp)
+    n <- length(names)
+    j <- rep(FALSE, n)
+    if(n>0) for (i in 1:n) {
+        q <- attr(get(names[i], envir = .Grpp), "class") == 
+            "Grappatab"
+        if (length(q) > 0 && q) 
+            j[i] <- TRUE
+    }
+    names[j]
+}
+
+`test` <-
+function (v,w,lw=1:ll) 
+{
+# makes a table where v is lw[i] when w is i
+# e.g. test('b','a',c(2,1,2,3))
+# t.a.b
+#     a=1 a=2 a=3 a=4
+# b=1   0   1   0   0
+# b=2   1   0   1   0
+# b=3   0   0   0   1
+
+ll<-length(get(cs('vs.',w), envir = .Grpp))
+mlw<-max(lw)
+if(any(unique(sort(lw))!=(1:mlw))) stop('invalid lw')
+probs<-as.numeric(1==lw)
+for(i in 2:mlw) probs<-rbind(probs,i==lw)
+tab(c(v,w),,probs)
+}
+
+`trav` <-
+function(quiet=!getOption('verbose'),start,out=TRUE,uselib)
+{
+if(missing(uselib))
+	{
+	if(is.null(getOption('uselib'))||getOption('uselib')) uselib<-TRUE
+	else uselib<-FALSE
+	}
+lib<-paste('Grappa',.Platform$dynlib.ext,sep='')
+if(uselib)
+	if(is.loaded('trav'))
+		{
+		if(!quiet) cat('trav using library\n'); travf(quiet,start,out)
+		}
+	else if(file.exists(lib))
+		{
+#		dyn.load(lib); cat('...',lib,'loaded\n'); 
+		if(!quiet) cat('trav using library\n') ; travf(quiet,start,out)
+		}
+		else 
+			{
+			cat('no',lib,'\n')
+			if(missing(uselib))
+				{
+				if(!quiet) cat('trav using R\n'); travr(quiet,start,out)
+				}
+			else
+				cat('trav fail\n')
+			}
+else
+	{
+	if(!quiet) cat('trav using R\n'); travr(quiet,start,out)
+	}
+}
+
+`travf` <-
+function (quiet=!getOption('verbose'),start,out=TRUE)
+{
+if(length(.Grpp$j.cq)<2) return(invisible())
+if(missing(start))
+	{
+# if root clique start not specified, collect then distribute on clique 1
+	travf(quiet,1,FALSE)
+	travf(quiet,1)
+	return(invisible())
+	}
+# encode junction tree, then call trav to get message passing schedule zz$res
+fjtree<-ftrjt(.Grpp$j.tree)
+ncq<-length(fjtree$csl); nlk<-length(fjtree$sep)
+
+zz<-.Fortran('trav',as.integer(start),as.integer(out),
+	as.integer(ncq),as.integer(nlk),
+	as.integer(fjtree$csl),as.integer(fjtree$sep),as.integer(fjtree$nxt),
+	integer(ncq),integer(ncq),integer(3*ncq),res=integer(3*(nlk/2)), PACKAGE="Grappa")
+
+#	subroutine trav(start,out,ncq,nlk,csl,sep,nxt,
+#    &	togo,stack,m,res)
+#	integer csl(ncq),sep(nlk),nxt(nlk),togo(ncq),stack(ncq),
+#     &	m(ncq,3),res(3,nlk),start,out,this,hi
+
+ftcq<-ftrcs(.Grpp$tcq)
+ftsp<-ftrcs(.Grpp$tsep)
+zz$res<-matrix(zz$res,ncol=3,byrow=TRUE)
+nwk<-10*max(ftcq$vhi-ftcq$vlo+1)+7*max(ftsp$vhi-ftsp$vlo+1)
+
+yy<-.Fortran('dopass',as.integer(length(.Grpp$var.nvals)),as.integer(.Grpp$var.nvals),
+	as.integer(ncq),as.integer(nrow(zz$res)),as.integer(zz$res),
+	as.integer(ftcq$vars),as.integer(ftcq$vlo),as.integer(ftcq$vhi),
+	a=as.double(ftcq$probs),as.integer(ftcq$plo),as.integer(ftcq$phi),
+	as.integer(ftsp$vars),as.integer(ftsp$vlo),as.integer(ftsp$vhi),
+	b=as.double(ftsp$probs),as.integer(ftsp$plo),as.integer(ftsp$phi),
+	integer(nwk),as.integer(nwk),idone=integer(nrow(zz$res)), PACKAGE="Grappa")
+	
+#	subroutine dopass(nvars,nvals,ncq,nsch,sched,
+#     &	ftcqv,ftcqvlo,ftcqvhi,ftcqp,ftcqplo,ftcqphi,
+#     &	ftspv,ftspvlo,ftspvhi,ftspp,ftspplo,ftspphi,
+#     &	wk,nwk,idone)
+#	integer nvals(nvars),sched(nsch,3),
+#     &	ftcqv(1),ftcqvlo(nvars),ftcqvhi(nvars),
+#     &	ftcqplo(nvars),ftcqphi(nvars),
+#     &	ftspv(1),ftspvlo(nvars),ftspvhi(nvars),
+#     &	ftspplo(nvars),ftspphi(nvars),
+#     &	wk(nwk),idone(nsch)
+#	real*8 ftcqp(1),ftspp(1)
+
+if(!quiet) for(i in 1:nrow(zz$res)) 
+	cat(zz$res[i,],c('  ',' =')[1+yy$idone[i]],'\n')
+ftcq$probs<-yy$a
+ftsp$probs<-yy$b
+
+for(ic in 1:ncq)
+	{
+	x<-ftcq$probs[ftcq$plo[ic]:ftcq$phi[ic]]
+	attributes(x)<-attributes(.Grpp$tcq[[ic]])
+	.Grpp$tcq[[ic]]<-x
+	}
+for(is in 2:ncq)
+	{
+	x<-ftsp$probs[ftsp$plo[is]:ftsp$phi[is]]
+	attributes(x)<-attributes(.Grpp$tsep[[is]])
+	.Grpp$tsep[[is]]<-x
+	}
+
+invisible()
+}
+
+`travr` <-
+function (quiet=!getOption('verbose'),start,out=TRUE) 
+{
+if(length(.Grpp$j.cq)<2) return(invisible())
+if(missing(start))
+	{
+	travr(quiet,1,FALSE)
+	travr(quiet,1)
+	return(invisible())
+	}
+#traverses junction tree j.tree out from or into clique start, according to out=T or F
+nv<-length(.Grpp$j.tree)
+togo<-rep(TRUE,nv)
+togo[start]<-FALSE
+stack<-rep(0,nv)
+stack[1]<-start
+is<-1
+if(!out)
+	{
+	m<-matrix(0,nv-1,3)
+	im<-0
+	}
+	
+repeat
+	{
+	if(is==0) break
+	this<-stack[is]
+	is<-is-1
+	sc<-.Grpp$j.tree[[this]]
+	for(i in 1:nrow(sc))
+		{
+		nx<-sc[i,2]
+		if(togo[nx]) 
+			{
+			if(out)  pass(this,sc[i,1],sc[i,2],quiet)
+			else {im<-im+1; m[im,]<-c(this,sc[i,1],sc[i,2])}
+			is<-is+1; stack[is]<-nx; togo[nx]<-FALSE
+			}
+		}
+	}
+if(!out)
+	{
+	for(im in (nv-1):1)  pass(m[im,3],m[im,2],m[im,1],quiet)
+	}
+invisible()
+}
+
+`vars` <-
+function () 
+{
+names<-ls(envir = .Grpp)
+n<-length(names)
+j<-rep(FALSE,n)
+if(n>0) for(i in 1:n)
+	{
+	j[i]<-!is.function(get(names[i],envir = .Grpp))
+	}
+names[j]
+}
+
+`vs` <-
+function (var,values) 
+{
+assign(paste('vs',var,sep='.'),values,envir = .Grpp)
+}
+
+`wedges` <-
+function(file='')
+{
+# writes graph in form ready for Alun Thomas's ViewGraph
+nv<-length(.Grpp$var.names)
+for(i in 1:(nv-1)) for(j in (i+1):nv) if(.Grpp$j.adj[i,j]) 
+	cat(.Grpp$var.names[i],.Grpp$var.names[j],'\n',file=file,append=TRUE)
+}
+
+`which` <-
+function (v, l,..., lw=1:ll) 
+{
+# creates a multiple selection cpt:
+# variable v is deterministically the lw[l]'th of the remaining
+# arguments. e.g. which('a','i','b1','b2','b3')
+# means that a is bi
+vars<-c(v,l,c(...))
+# cat('which:',vars,'\n')
+vs<-get(paste('vs',vars[3],sep='.'),envir = .Grpp)
+nall<-length(vs)
+ll<-length(get(cs('vs.',l), envir = .Grpp))
+mlw<-max(lw)
+if(any(unique(sort(lw))!=(1:mlw))) stop('invalid lw')
+if(length(vars)!=mlw+2) stop('wrong no. of vars')
+z<-array(diag(nall),c(rep(nall,mlw+1)))
+v<-1:(mlw+1)
+probs<-NULL
+for(i in 1:ll)
+{
+ii<-lw[i]+1
+probs<-c(probs,aperm(z,order(c(1,ii,v[-c(1,ii)]))))
+}
+probs<-array(probs,c(rep(nall,mlw+1),ll))
+tab(vars,,aperm(probs,c(1,mlw+2,2:(mlw+1))),values=vs)
+}
+
+`wjt` <-
+function (file='') 
+# writes junction tree in form ready for Alun Thomas's ViewGraph
+{
+for(i in 1:length(.Grpp$j.tree)) 
+if(!identical(.Grpp$j.tree[[i]],-1))
+{
+j<-.Grpp$j.tree[[i]][,2]; j<-j[j>i]
+if(length(j)>0) cat(i,j,'\n',file=file,append=TRUE)
+}
+}
+
